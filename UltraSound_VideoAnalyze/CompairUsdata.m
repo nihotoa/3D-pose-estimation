@@ -16,9 +16,10 @@ used_file_infoに代入するファイル名の変更は手動で行う
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear;
 %% set param
-merged_data = [220000, 220530, 220606, 220620, 220801, 220912, 221011]; % 
+% merged_data = [220000, 220530, 220606, 220620, 220801, 220912, 221011]; 
+merged_data = [220000, 220620, 220801, 220912, 221011]; 
 contain_pre_surgery = 1; %merged_dataの中に腱付け替え前のデータ(22000)が含まれているかどうか(含まれている場合、プロットのところの条件分岐のためにこの変数を使用する) 
-data_type = 'ulnar'; %ulnar or radial
+data_type = 'radial'; %ulnar or radial
 point_header = ["index-nail","middle-nail","ring-nail"]; %remarkable keypoint
 point_coodination = ["x","y","z"]; %axis to use
 point_num = 3; %number of keypoint
