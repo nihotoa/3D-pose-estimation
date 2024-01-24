@@ -18,27 +18,32 @@ point_scalar
 (例)周波数解析
 離散フーリエ変換して,スパイクを構成する周波数帯を求めて, 閾値を決定し, その閾値を使用してエッジ検出をする
 (SN比から求める方法)
-・その日の平均のデータが全てNaN値の場合がある
-=> meanする時にNaN値が含まれている => nanmeanを使う or 欠損値を持つ刺激タイミングのデータを消去する
-title, range, 
+やること順:
+1. (OK!!)5日分で出力できるようにする
+2. (OK!!)1pointと3pointの両方で出力できるように,1subplot部分を関数化した後、switchで条件分岐
+3. 全体的にコードを簡潔にする(2つ目のファイル選択のdispの修正)
+
 %}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear;
 %% set param
 days_list = [220000, 220530, 220606, 220620, 220801, 220912, 221011];
+% days_list = [220000, 220620, 220801, 220912, 221011];
 data_type = 'radial'; %  'ulnar' / 'radial'
-points_name = {'index-nail', 'middle-nail', 'thumb-nail'};
+points_name = {'index-nail', 'middle-nail', 'ring-nail'};
 trim_range = [-60 60];  % [frame] how long range you want to plot?
+shooting_frame_rate = 120;
 spike_ratio_threshold = 0.7;
-make_stim_data = 1; %wheter you want to make stimulation data(if this is your first time running with this setting, set this to 1)
+make_stim_data = 0; %wheter you want to make stimulation data(if this is your first time running with this setting, set this to 1)
+plot_type = 'each'; % 'each' / 'all' 
 
 %% code section
 stim_file_common_path = fullfile(pwd, 'merged_coodination', data_type);
 
 % load data
 disp("Please select folder which contains 'stim_scalar.mat'")
-disp('(ex.) 220000to221011_7')
-data_fold_path = uigetdir(stim_file_common_path);
+disp(['(ex.)' num2str(days_list(1)) 'to' num2str(days_list(end)) '_' num2str(length(days_list))])
+data_fold_path = uigetdirEX(stim_file_common_path);
 load(fullfile(data_fold_path, 'stim_scalar.mat'), 'point_scalar');
 
 
@@ -121,58 +126,60 @@ if make_stim_data
     if not(exist(save_data_location))
         mkdir(save_data_location);
     end
-    save(fullfile(save_data_location, [data_type '_trimmed_stim_data(' num2str(trim_range(1)) '_to_' num2str(trim_range(2)) ' frame).mat']), 'stim_average_data', 'stim_std_data', "days_list");
+    save(fullfile(save_data_location, [data_type '_trimmed_stim_data(' num2str(trim_range(1)) '_to_' num2str(trim_range(2)) ' frame_' num2str(length(days_list)) 'days).mat']), 'stim_average_data', 'stim_std_data', "days_list");
 end
 
 %% plot figure
-disp('Please select stim_data file')
-[stim_data_name, stim_data_path] = uigetfile(fullfile(pwd, 'trimmed_stim_data'));
+disp(['Please select stim_data file(' data_type '_trimmed_stim_data(' num2str(trim_range(1)) '_to_' num2str(trim_range(2)) ' frame_' num2str(length(days_list)) 'days).mat)'])
+[stim_data_name, stim_data_path] = uigetfileEX(fullfile(pwd, 'trimmed_stim_data'));
 load(fullfile(stim_data_path, stim_data_name), 'stim_average_data', 'stim_std_data');
-
 x = [trim_range(1)+1 : trim_range(2)];
-cmap = colormap(parula(length(days_list)));
+% transrate [frame] to [sec]
+x = x / shooting_frame_rate;
+cmap = colormap(turbo(length(days_list)));
 close all;
-figure("position", [100, 100, 600, 800]);
-for ii = 1:marker_point_num
-    subplot(marker_point_num, 1, ii)
-    hold on;
-    % pick up data
-    ref_average_data = stim_average_data{ii};
-    ref_std_data = stim_std_data{ii};
-    for jj = 1:length(days_list)
-        if jj == 1
-            disp_name = 'pre surgery(20220530)';
-        else
-            disp_name = ['post' num2str(jj-1) '(' num2str(days_list(jj)) ')'];
-        end
-        plot(x, ref_average_data(jj, :), 'color', cmap(jj, :), DisplayName=disp_name, LineWidth=1.2)
-    end
-    % decoration
-    grid on;
-    h_axes = gca;
-    h_axes.XAxis.FontSize = 12;
-    h_axes.YAxis.FontSize = 12;
-    title([points_name{ii} ' displacement'], FontSize=15);
-    xline(0, Color='red', LineWidth=1.2, HandleVisibility='off')
-    if ii == 1
-        legend()
-    elseif ii == marker_point_num
-        xlabel('elapsed frame[frame]', 'FontSize', 15);
-        ylabel('displacement by stmulus[mm]', 'FontSize', 15);
-    end
-end
-% give the whole title
+
+% give the whole title(to use for filenames)
 switch data_type
     case 'radial'
         stimulated_muscle = 'EDC';
     case 'ulnar'
         stimulated_muscle = 'FDS';
 end
-sgtitle([' Finger displacement (' stimulated_muscle ' stimulation)'], 'FontSize', 20)
-% save figure
-saveas(gcf, fullfile(data_fold_path, ['ulnar_stim_average(' num2str(trim_range(1)) '_to_' num2str(trim_range(2)) 'frame).png']))
-saveas(gcf, fullfile(data_fold_path, ['ulnar_stim_average(' num2str(trim_range(1)) '_to_' num2str(trim_range(2)) 'frame).fig']))
-close all;
+
+if strcmp(plot_type, 'all')
+    figure("position", [100, 100, 600, 800]);
+end
+for ii = 1:marker_point_num
+    switch plot_type
+        case 'each'
+            figure("position", [100, 100, 800, 400]);
+            hold on
+            plot_each_point_stim(stim_average_data, ii, days_list, x, cmap, points_name, stimulated_muscle)
+            legend()
+            xlabel('elapsed time from stimulus[sec]', 'FontSize', 15);
+            ylabel('displacement[mm]', 'FontSize', 15);
+            % save figure
+            saveas(gcf, fullfile(data_fold_path, [points_name{ii} '_' data_type '_stim_average(' num2str(round(x(1), 1)) '_to_' num2str(round(x(end), 1)) '[sec]).png']))
+            saveas(gcf, fullfile(data_fold_path, [points_name{ii} '_' data_type '_stim_average(' num2str(round(x(1), 1)) '_to_' num2str(round(x(end), 1)) '[sec]).png']))
+            close all;
+        case 'all'
+            subplot(marker_point_num, 1, ii)
+            hold on;
+            plot_each_point_stim(stim_average_data, ii, days_list, x, cmap, points_name)
+            if ii == 1
+                legend()
+            elseif ii == marker_point_num
+                xlabel('elapsed time from stimulus[sec]', 'FontSize', 15);
+                ylabel('displacement[mm]', 'FontSize', 15);
+                sgtitle([' Finger displacement (' stimulated_muscle ' stimulation)'], 'FontSize', 20)
+                % save figure
+                saveas(gcf, fullfile(data_fold_path, [data_type '_stim_average(' num2str(round(x(1), 1)) '_to_' num2str(round(x(end), 1)) '[sec]).png']))
+                saveas(gcf, fullfile(data_fold_path, [data_type '_stim_average(' num2str(round(x(1), 1)) '_to_' num2str(round(x(end), 1)) '[sec]).png']))
+                close all;
+            end
+    end
+end
 
 %% define local function
 function [return_array] = omit_continuous_values(ref_array)
@@ -186,4 +193,29 @@ for ii = 2:length(ref_array)
     end
     prev_num = ref_num;
 end
+end
+
+function [] = plot_each_point_stim(stim_average_data, ii, days_list, x, cmap, points_name, stimulated_muscle)
+% pick up data
+ref_average_data = stim_average_data{ii};
+% ref_std_data = stim_std_data{ii};
+for jj = 1:length(days_list)
+    if jj == 1
+        disp_name = 'pre surgery(20220530)';
+    else
+        disp_name = ['post' num2str(jj-1) '(' num2str(days_list(jj)) ')'];
+    end
+    plot(x, ref_average_data(jj, :), 'color', cmap(jj, :), DisplayName=disp_name, LineWidth=1.2)
+end
+% decoration
+grid on;
+h_axes = gca;
+h_axes.XAxis.FontSize = 12;
+h_axes.YAxis.FontSize = 12;
+if exist("stimulated_muscle")
+    title([points_name{ii} ' displacement(' stimulated_muscle ' stimulated)'], FontSize=15);
+else
+    title([points_name{ii} ' displacement'], FontSize=15);
+end
+xline(0, Color='red', LineWidth=1.2, HandleVisibility='off')
 end
